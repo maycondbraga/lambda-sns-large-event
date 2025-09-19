@@ -1,5 +1,6 @@
 import json
 import boto3
+import sns_extended_client
 
 sns_topic_arn = 'arn:aws:sns:us-east-1:000000000000:evento-stream-topic.fifo'
 s3_bucket_name = 'evento-stream-bucket'
@@ -12,6 +13,13 @@ sns_client = boto3.client(
     region_name='us-east-1'
 )
 sns_client.large_payload_support = s3_bucket_name
+sns_client.s3_client = boto3.client(
+    's3',
+    endpoint_url='http://localhost:4566',
+    aws_access_key_id='dummy',
+    aws_secret_access_key='dummy',
+    region_name='us-east-1'
+)
 
 
 def send_event_to_sns(event):
