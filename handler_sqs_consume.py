@@ -18,12 +18,14 @@ s3_client = boto3.client(
 
 queue_url = 'http://localhost:4566/000000000000/evento-stream-queue.fifo'
 
+
 def get_event_from_s3(s3_info):
     obj = s3_client.get_object(
         Bucket=s3_info['s3BucketName'],
         Key=s3_info['s3Key']
     )
     return obj['Body'].read().decode()
+
 
 def read_event_from_sqs():
     response = sqs_client.receive_message(
@@ -54,6 +56,7 @@ def read_event_from_sqs():
         ReceiptHandle=messages[0]['ReceiptHandle']
     )
     return event
+
 
 # Exemplo de uso:
 if __name__ == "__main__":
