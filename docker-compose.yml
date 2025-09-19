@@ -1,0 +1,70 @@
+services:
+  localstack:
+    container_name: localstack
+    image: localstack/localstack
+    hostname: localstack
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      - SKIP_SSL_CERT_DOWNLOAD=1
+      - SERVICES=s3,sns,sqs
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - ls-network
+
+  s3-init:
+    container_name: setup-s3
+    image: amazon/aws-cli
+    depends_on:
+      - localstack
+    environment:
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    entrypoint: [ "sh", "-c" ]
+    command: >
+      "aws s3api create-bucket --bucket evento-stream-bucket --endpoint-url=http://localstack:4566 --region us-east-1 &&
+       echo 'Bucket S3 criado: evento-stream-bucket'"
+    networks:
+      - ls-network
+
+  sns-init:
+    container_name: setup-sns
+    image: amazon/aws-cli
+    depends_on:
+      - localstack
+    environment:
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    entrypoint: [ "sh", "-c" ]
+    command: >
+      "aws sns create-topic --name evento-stream-topic.fifo --attributes FifoTopic=true,ContentBasedDeduplication=true --endpoint-url=http://localstack:4566 --region us-east-1 &&
+       echo 'Tópico SNS FIFO criado: evento-stream-topic.fifo'"
+    networks:
+      - ls-network
+
+  sqs-fifo-init:
+    container_name: setup-sqs-fifo
+    image: amazon/aws-cli
+    depends_on:
+      - localstack
+      - sns-init
+    environment:
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    entrypoint: [ "sh", "-c" ]
+    command: >
+      "aws sqs create-queue --queue-name evento-stream-queue.fifo --attributes FifoQueue=true,ContentBasedDeduplication=true --endpoint-url=http://localstack:4566 --region us-east-1 &&
+       echo 'Fila SQS FIFO criada: evento-stream-queue.fifo' &&
+       aws sns subscribe --topic-arn \"arn:aws:sns:us-east-1:000000000000:evento-stream-topic.fifo\" --protocol sqs --notification-endpoint \"arn:aws:sqs:us-east-1:000000000000:evento-stream-queue.fifo\" --attributes RawMessageDelivery=true --endpoint-url=http://localstack:4566 --region us-east-1 &&
+       echo 'SQS FIFO atrelada ao SNS FIFO'"
+    networks:
+      - ls-network
+
+networks:
+  ls-network:
+    driver: bridge
