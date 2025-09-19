@@ -39,26 +39,21 @@ def read_event_from_sqs():
     if not messages:
         return None
 
-    message_body = messages[0]['Body']
-    try:
-        body_json = json.loads(message_body)
-        # Se for payload estendido, buscar no S3
-        if isinstance(body_json, list) and len(body_json) > 1 and 's3BucketName' in body_json[1]:
-            event = get_event_from_s3(body_json[1])
-        else:
-            event = message_body
-    except Exception:
-        event = message_body
+    msg = messages[0]
+    msg_attrs = msg.get('MessageAttributes', {})
+    if 'ExtendedPayloadSize' in msg_attrs:
+        body_json = json.loads(msg['Body'])
+        event = get_event_from_s3(body_json[1])
+    else:
+        event = json.loads(msg['Body'])
 
-    # Remove a mensagem da fila
     sqs_client.delete_message(
         QueueUrl=queue_url,
-        ReceiptHandle=messages[0]['ReceiptHandle']
+        ReceiptHandle=msg['ReceiptHandle']
     )
     return event
 
 
-# Exemplo de uso:
 if __name__ == "__main__":
     evento = read_event_from_sqs()
     print("Evento recebido:", evento)
